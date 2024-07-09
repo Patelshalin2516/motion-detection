@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Motion Detection</title>
+    <style>
+        #video {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <h1>Motion Detection Running</h1>
+    <p>Check the console for motion detection logs.</p>
+    <div>
+        <h2>Live Feed</h2>
+        <img id="video" src="{% url 'video-feed' %}" alt="Live Video Feed">
+    </div>
+</body>
+</html>
