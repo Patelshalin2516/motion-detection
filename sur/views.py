@@ -1,6 +1,8 @@
-from django.shortcuts import render,redirect
+from django.shortcuts import render, redirect
 from django.http import StreamingHttpResponse
 from .models import MotionAlert
+from .forms import SignupForm
+from django.contrib.auth import login
 import cv2
 import time
 from datetime import datetime
@@ -9,8 +11,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
-from .forms import SignupForm
-from django.contrib.auth import login
+import base64
 
 # Constants for distance calculation
 KNOWN_WIDTH = 0.2  # Known width of the object in meters (example: 20 cm)
@@ -43,12 +44,15 @@ def calculate_distance(known_width, focal_length, perceived_width):
         return None
     return (known_width * focal_length) / perceived_width
 
-def send_email_alert(alert_time, image_path, distance):
+def send_email_alert(alert_time, image_data, distance):
     smtp_server = 'smtp.office365.com'
     smtp_port = 587
     sender_email = 'homesec0530@outlook.com'  # Replace with your email address
     sender_password = 'Harsh0530###'  # Replace with your email password
     recipient_email = 'shalinpatel1603@gmail.com'  # Replace with recipient email address
+
+    # Encode image data to base64
+    encoded_image = base64.b64encode(image_data).decode('utf-8')
 
     # Create the email
     message = MIMEMultipart()
@@ -60,12 +64,11 @@ def send_email_alert(alert_time, image_path, distance):
     message.attach(MIMEText(body, 'plain'))
 
     # Attach the image
-    with open(image_path, 'rb') as attachment:
-        part = MIMEBase('application', 'octet-stream')
-        part.set_payload(attachment.read())
-        encoders.encode_base64(part)
-        part.add_header('Content-Disposition', f'attachment; filename={image_path}')
-        message.attach(part)
+    part = MIMEBase('application', 'octet-stream')
+    part.set_payload(base64.b64decode(encoded_image))
+    encoders.encode_base64(part)
+    part.add_header('Content-Disposition', f'attachment; filename=image.jpg')
+    message.attach(part)
 
     # Connect to the SMTP server and send the email
     try:
@@ -114,9 +117,9 @@ def gen(camera):
 
             if motion_detected and (current_time - last_alert_time > alert_interval):
                 alert_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                image_path = f"motion_{alert_time.replace(':', '-').replace(' ', '_')}.jpg"
-                cv2.imwrite(image_path, frame)
-                print(f"Motion detected at {alert_time}! Alert issued. Image saved as {image_path}.")
+                image_data = cv2.imencode('.jpg', frame)[1].tostring()
+                print(f"Motion detected at {alert_time}! Alert issued.")
+
                 for contour in contours:
                     if cv2.contourArea(contour) > 500:
                         (x, y, w, h) = cv2.boundingRect(contour)
@@ -124,8 +127,8 @@ def gen(camera):
                         if distance is not None and 0 <= distance <= 3:
                             cv2.line(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
                             cv2.putText(frame, f"Distance: {distance:.2f}m", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                            send_email_alert(alert_time, image_path, distance)
-                            MotionAlert.objects.create(image_path=image_path, distance=distance)
+                            send_email_alert(alert_time, image_data, distance)
+                            MotionAlert.objects.create(image=image_data, distance=distance)
                             last_alert_time = current_time
                             break  # Only send one email per alert
 
@@ -140,7 +143,6 @@ def gen(camera):
 
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
-
 
 def video_feed(request):
     url = 'http://192.168.1.6:8080/video'  # Replace with your URL
@@ -168,3 +170,8 @@ def index(request):
 def object_detection(request):
     return render(request, 'object_detection.html')
 
+def display_images(request):
+    alerts = MotionAlert.objects.all()  # Query all MotionAlert instances
+    for alert in alerts:
+        alert.image = base64.b64encode(alert.image).decode('utf-8')
+    return render(request, 'display_images.html', {'alerts': alerts})

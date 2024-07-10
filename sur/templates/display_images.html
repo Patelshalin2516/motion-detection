@@ -1,0 +1,20 @@
+<!-- display_images.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Display Images</title>
+</head>
+<body>
+    <h1>Images from Database</h1>
+
+    {% for alert in alerts %}
+        <div style="margin-bottom: 20px;">
+            <h2>{{ alert.timestamp }}</h2>
+            <p>Distance: {{ alert.distance }} meters</p>
+            <img src="data:image/jpeg;base64,{{ alert.image }}" alt="Motion Image">
+        </div>
+    {% endfor %}
+</body>
+</html>

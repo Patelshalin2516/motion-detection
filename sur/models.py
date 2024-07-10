@@ -2,7 +2,7 @@ from django.db import models
 
 class MotionAlert(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
-    image_path = models.CharField(max_length=255)
+    image = models.BinaryField(default=b'')
     distance = models.FloatField()
 
     def __str__(self):

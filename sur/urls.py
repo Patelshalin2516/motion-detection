@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import motion_detection_view ,video_feed ,signup ,home ,index ,object_detection
+from .views import motion_detection_view ,video_feed ,signup ,home ,index ,object_detection,display_images
 from django.contrib.auth import views as auth_views
 from .forms import LoginForm
 
@@ -12,5 +12,6 @@ urlpatterns = [
     path('home/',home , name='home'),
     path('index/',index,name='index'),
     path('object-detection/',object_detection,name='object_detection'),
+    path('display-images/', display_images, name='display_images'),
     path('login/',auth_views.LoginView.as_view(template_name='login.html',authentication_form=LoginForm),name='login'),
 ]
