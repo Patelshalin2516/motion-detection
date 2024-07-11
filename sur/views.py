@@ -121,7 +121,7 @@ def gen(camera):
                 print(f"Motion detected at {alert_time}! Alert issued.")
 
                 for contour in contours:
-                    if cv2.contourArea(contour) > 500:
+                    if cv2.contourArea(contour) > 50000:
                         (x, y, w, h) = cv2.boundingRect(contour)
                         distance = calculate_distance(KNOWN_WIDTH, FOCAL_LENGTH, w)
                         if distance is not None and 0 <= distance <= 3:
@@ -145,7 +145,7 @@ def gen(camera):
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
 
 def video_feed(request):
-    url = 'http://100.89.20.95:8080/video'  # Replace with your URL
+    url = 'http://192.168.1.6:8080/video'  # Replace with your URL
     cap = cv2.VideoCapture(url)
     return StreamingHttpResponse(gen(cap), content_type="multipart/x-mixed-replace;boundary=frame")
 
