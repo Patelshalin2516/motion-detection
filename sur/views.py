@@ -145,7 +145,7 @@ def gen(camera):
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
 
 def video_feed(request):
-    url = 'http://192.168.1.6:8080/video'  # Replace with your URL
+    url = 'http://100.89.20.95:8080/video'  # Replace with your URL
     cap = cv2.VideoCapture(url)
     return StreamingHttpResponse(gen(cap), content_type="multipart/x-mixed-replace;boundary=frame")
 
