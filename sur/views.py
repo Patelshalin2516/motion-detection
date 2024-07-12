@@ -3,14 +3,10 @@ from django.http import StreamingHttpResponse
 from .models import MotionAlert
 from .forms import SignupForm
 from django.contrib.auth import login
+import smtplib
 import cv2
 import time
 from datetime import datetime
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
 import base64
 
 # Constants for distance calculation
@@ -44,43 +40,38 @@ def calculate_distance(known_width, focal_length, perceived_width):
         return None
     return (known_width * focal_length) / perceived_width
 
-def send_email_alert(alert_time, image_data, distance):
-    smtp_server = 'smtp.office365.com'
-    smtp_port = 587
+def send_sms_alert(alert_time, distance):
+    # Recipient's phone number including country code (e.g., +91 for India)
+    recipient_phone_number = '+919925677030'  # Replace with recipient's phone number
+    
+    # Compose the SMS message
+    message_body = f"Alert! Unsafe condition occur.\nMotion detected at {alert_time}.\nDistance to object: {distance:.2f} meters."
+    
+    # Email-to-SMS gateway for your carrier (replace with the correct gateway)
+    carrier_email_gateway = 'sms.jio.com'  # Replace with the carrier's email-to-SMS gateway
+    
+    # Format the recipient's email address based on the carrier's gateway
+    recipient_email = f"{recipient_phone_number}@{carrier_email_gateway}"
+    
+    # Your email credentials
     sender_email = 'homesec0530@outlook.com'  # Replace with your email address
     sender_password = 'Harsh0530###'  # Replace with your email password
-    recipient_email = 'shalinpatel1603@gmail.com'  # Replace with recipient email address
-
-    # Encode image data to base64
-    encoded_image = base64.b64encode(image_data).decode('utf-8')
-
-    # Create the email
-    message = MIMEMultipart()
-    message['From'] = sender_email
-    message['To'] = recipient_email
-    message['Subject'] = 'Motion Detected Alert'
-
+    
+    # Create the email message
+    subject = 'Motion Detected Alert'
     body = f"Alert! Unsafe condition occur.\nMotion detected at {alert_time}.\nDistance to object: {distance:.2f} meters."
-    message.attach(MIMEText(body, 'plain'))
-
-    # Attach the image
-    part = MIMEBase('application', 'octet-stream')
-    part.set_payload(base64.b64decode(encoded_image))
-    encoders.encode_base64(part)
-    part.add_header('Content-Disposition', f'attachment; filename=image.jpg')
-    message.attach(part)
-
+    message = f"Subject: {subject}\n\n{body}"
+    
     # Connect to the SMTP server and send the email
     try:
-        server = smtplib.SMTP(smtp_server, smtp_port)
+        server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(sender_email, sender_password)
-        text = message.as_string()
-        server.sendmail(sender_email, recipient_email, text)
+        server.sendmail(sender_email, recipient_email, message)
         server.quit()
-        print(f"Alert email sent to {recipient_email}.")
+        print(f"SMS sent to {recipient_phone_number} via {carrier_email_gateway}.")
     except Exception as e:
-        print(f"Failed to send email alert: {e}")
+        print(f"Failed to send SMS alert: {e}")
 
 def motion_detection_view(request):
     return render(request, 'home.html')
@@ -127,10 +118,10 @@ def gen(camera):
                         if distance is not None and 0 <= distance <= 3:
                             cv2.line(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
                             cv2.putText(frame, f"Distance: {distance:.2f}m", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                            send_email_alert(alert_time, image_data, distance)
+                            send_sms_alert(alert_time, distance)
                             MotionAlert.objects.create(image=image_data, distance=distance)
                             last_alert_time = current_time
-                            break  # Only send one email per alert
+                            break  # Only send one SMS per alert
 
             # Update the last frame
             last_frame = frame
