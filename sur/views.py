@@ -18,8 +18,8 @@ import base64
 # Constants for distance calculation
 KNOWN_WIDTH = 0.2  # Known width of the object in meters (example: 20 cm)
 FOCAL_LENGTH = 615  # Focal length of the camera (adjust based on your camera)
-TELEGRAM_BOT_TOKEN = '7291344095:AAHmsY6pRJByQKVqlsCkZGYFue4OpIo43z8'  # Replace with your Telegram bot token
-TELEGRAM_CHAT_ID = '6241199976'  # Replace with your Telegram chat ID
+TELEGRAM_BOT_TOKEN = 'token_id'  # Replace with your Telegram bot token
+TELEGRAM_CHAT_ID = 'chat_id'  # Replace with your Telegram chat ID
 
 def detect_motion(frame1, frame2):
     # Convert frames to grayscale
