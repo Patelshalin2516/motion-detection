@@ -1,17 +1,25 @@
+import requests
+
 from django.shortcuts import render, redirect
 from django.http import StreamingHttpResponse
 from .models import MotionAlert
 from .forms import SignupForm
 from django.contrib.auth import login
-import smtplib
 import cv2
 import time
 from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 import base64
 
 # Constants for distance calculation
 KNOWN_WIDTH = 0.2  # Known width of the object in meters (example: 20 cm)
 FOCAL_LENGTH = 615  # Focal length of the camera (adjust based on your camera)
+TELEGRAM_BOT_TOKEN = '7291344095:AAHmsY6pRJByQKVqlsCkZGYFue4OpIo43z8'  # Replace with your Telegram bot token
+TELEGRAM_CHAT_ID = '6241199976'  # Replace with your Telegram chat ID
 
 def detect_motion(frame1, frame2):
     # Convert frames to grayscale
@@ -40,38 +48,40 @@ def calculate_distance(known_width, focal_length, perceived_width):
         return None
     return (known_width * focal_length) / perceived_width
 
-def send_sms_alert(alert_time, distance):
-    # Recipient's phone number including country code (e.g., +91 for India)
-    recipient_phone_number = '+919925677030'  # Replace with recipient's phone number
-    
-    # Compose the SMS message
-    message_body = f"Alert! Unsafe condition occur.\nMotion detected at {alert_time}.\nDistance to object: {distance:.2f} meters."
-    
-    # Email-to-SMS gateway for your carrier (replace with the correct gateway)
-    carrier_email_gateway = 'sms.jio.com'  # Replace with the carrier's email-to-SMS gateway
-    
-    # Format the recipient's email address based on the carrier's gateway
-    recipient_email = f"{recipient_phone_number}@{carrier_email_gateway}"
-    
-    # Your email credentials
-    sender_email = 'homesec0530@outlook.com'  # Replace with your email address
-    sender_password = 'Harsh0530###'  # Replace with your email password
-    
-    # Create the email message
-    subject = 'Motion Detected Alert'
-    body = f"Alert! Unsafe condition occur.\nMotion detected at {alert_time}.\nDistance to object: {distance:.2f} meters."
-    message = f"Subject: {subject}\n\n{body}"
-    
-    # Connect to the SMTP server and send the email
+def send_telegram_alert(alert_time, image_data, distance):
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipient_email, message)
-        server.quit()
-        print(f"SMS sent to {recipient_phone_number} via {carrier_email_gateway}.")
+        # Create the alert message
+        message_text = f"Alert! Unsafe condition occur.\nMotion detected at {alert_time}.\nDistance to object: {distance:.2f} meters."
+        
+        # Send the message
+        send_message_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        response = requests.post(send_message_url, data={
+            'chat_id': TELEGRAM_CHAT_ID,
+            'text': message_text
+        })
+
+        # Check if the message was sent successfully
+        if response.status_code == 200:
+            print(f"Alert message sent to Telegram chat ID {TELEGRAM_CHAT_ID}.")
+        else:
+            print(f"Failed to send alert message: {response.status_code} {response.text}")
+        
+        # Send the image
+        send_photo_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+        response = requests.post(send_photo_url, data={
+            'chat_id': TELEGRAM_CHAT_ID
+        }, files={
+            'photo': ('image.jpg', image_data, 'image/jpeg')
+        })
+
+        # Check if the image was sent successfully
+        if response.status_code == 200:
+            print(f"Alert image sent to Telegram chat ID {TELEGRAM_CHAT_ID}.")
+        else:
+            print(f"Failed to send alert image: {response.status_code} {response.text}")
+
     except Exception as e:
-        print(f"Failed to send SMS alert: {e}")
+        print(f"Failed to send Telegram alert: {e}")
 
 def motion_detection_view(request):
     return render(request, 'home.html')
@@ -118,10 +128,10 @@ def gen(camera):
                         if distance is not None and 0 <= distance <= 3:
                             cv2.line(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
                             cv2.putText(frame, f"Distance: {distance:.2f}m", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                            send_sms_alert(alert_time, distance)
+                            send_telegram_alert(alert_time, image_data, distance)
                             MotionAlert.objects.create(image=image_data, distance=distance)
                             last_alert_time = current_time
-                            break  # Only send one SMS per alert
+                            break  # Only send one alert per detection
 
             # Update the last frame
             last_frame = frame
@@ -166,3 +176,11 @@ def display_images(request):
     for alert in alerts:
         alert.image = base64.b64encode(alert.image).decode('utf-8')
     return render(request, 'display_images.html', {'alerts': alerts})
+
+def get_chat_id():
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+    response = requests.get(url)
+    data = response.json()
+    print(data)  # This will print the response data to help you find the chat ID
+
+get_chat_id()

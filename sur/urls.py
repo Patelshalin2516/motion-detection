@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import motion_detection_view ,video_feed ,signup ,home ,index ,object_detection,display_images
+from .views import motion_detection_view ,video_feed ,signup ,home ,index ,object_detection,display_images,get_chat_id
 from django.contrib.auth import views as auth_views
 from .forms import LoginForm
 
@@ -11,6 +11,7 @@ urlpatterns = [
     path('signup/',signup,name='signup'),
     path('home/',home , name='home'),
     path('',index,name='index'),
+    path('get_chat_id/',get_chat_id,name='get_chat_id'),
     path('object-detection/',object_detection,name='object_detection'),
     path('display-images/', display_images, name='display_images'),
     path('login/',auth_views.LoginView.as_view(template_name='login.html',authentication_form=LoginForm),name='login'),
