@@ -12,10 +12,15 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 import base64
+import numpy as np
 
 # Constants for distance calculation
 KNOWN_WIDTH = 0.2  # Known width of the object in meters (example: 20 cm)
 FOCAL_LENGTH = 615  # Focal length of the camera (adjust based on your camera)
+
+# Threshold for significant change in width
+SIGNIFICANT_CHANGE_THRESHOLD = 0.05  # 5 cm change
+MOTION_STD_THRESHOLD = 5000 # Adjust this threshold based on your testing
 
 def detect_motion(frame1, frame2):
     # Convert frames to grayscale
@@ -34,10 +39,14 @@ def detect_motion(frame1, frame2):
     # Find contours on the thresholded image
     contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
-    # Check if any contour area is significant
-    motion_detected = any(cv2.contourArea(c) > 500 for c in contours)
+    # Calculate the standard deviation of the contour areas
+    contour_areas = [cv2.contourArea(c) for c in contours]
+    motion_std = np.std(contour_areas) if contour_areas else 0
     
-    return motion_detected, contours
+    # Check if any contour area is significant
+    motion_detected = motion_std > MOTION_STD_THRESHOLD
+    
+    return motion_detected, contours, motion_std
 
 def calculate_distance(known_width, focal_length, perceived_width):
     if perceived_width == 0:
@@ -60,7 +69,7 @@ def send_email_alert(alert_time, image_data, distance):
     message['To'] = recipient_email
     message['Subject'] = 'Motion Detected Alert'
 
-    body = f"Alert! Unsafe condition occur.\nMotion detected at {alert_time}.\nDistance to object: {distance:.2f} meters."
+    body = f"Alert! Unsafe condition occurred.\nMotion detected at {alert_time}.\nDistance to object: {distance:.2f} meters."
     message.attach(MIMEText(body, 'plain'))
 
     # Attach the image
@@ -93,6 +102,7 @@ def gen(camera):
     last_alert_time = 0
     frame_rate = 30  # frames per second
     prev_time = 0
+    last_width = 0
 
     while True:
         ret, frame = camera.read()
@@ -113,24 +123,26 @@ def gen(camera):
                 last_frame = frame
                 continue
 
-            motion_detected, contours = detect_motion(last_frame, frame)
+            motion_detected, contours, motion_std = detect_motion(last_frame, frame)
 
             if motion_detected and (current_time - last_alert_time > alert_interval):
                 alert_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 image_data = cv2.imencode('.jpg', frame)[1].tostring()
-                print(f"Motion detected at {alert_time}! Alert issued.")
+                print(f"Motion detected at {alert_time}! Alert issued. Motion STD: {motion_std:.2f}")
 
                 for contour in contours:
-                    if cv2.contourArea(contour) > 50000:
+                    if cv2.contourArea(contour) > 1000000:
                         (x, y, w, h) = cv2.boundingRect(contour)
                         distance = calculate_distance(KNOWN_WIDTH, FOCAL_LENGTH, w)
                         if distance is not None and 0 <= distance <= 3:
-                            cv2.line(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                            cv2.putText(frame, f"Distance: {distance:.2f}m", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                            send_email_alert(alert_time, image_data, distance)
-                            MotionAlert.objects.create(image=image_data, distance=distance)
-                            last_alert_time = current_time
-                            break  # Only send one email per alert
+                            if last_width == 0 or abs(w - last_width) > SIGNIFICANT_CHANGE_THRESHOLD * FOCAL_LENGTH / distance:
+                                cv2.line(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                                cv2.putText(frame, f"Distance: {distance:.2f}m", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                                send_email_alert(alert_time, image_data, distance)
+                                MotionAlert.objects.create(image=image_data, distance=distance)
+                                last_alert_time = current_time
+                                last_width = w
+                                break  # Only send one email per alert
 
             # Update the last frame
             last_frame = frame
